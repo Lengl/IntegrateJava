@@ -1,5 +1,8 @@
+//This class represents a segment on the axis with left & right borders
+//And some-kind-of-function above this segement
 public class Task {
-    private final static double accuracy = 0.000001;
+    //This is OK difference between whole segment area and sum of two little segments
+    public final static double accuracy = 0.000001;
 
     private double leftEnd;
     private double rightEnd;
@@ -9,6 +12,10 @@ public class Task {
 
     public double getFuncLeft() {
         return funcLeft;
+    }
+
+    public double getFuncRight() {
+        return funcRight;
     }
 
     public double getArea() {
@@ -23,12 +30,20 @@ public class Task {
         this.area = (rightEnd - leftEnd) * (funcRight + funcLeft) / 2;
     }
 
+    //compares area of a whole segment and sum of left and right segments
+    //(look if function is straight enough on this segments)
+    //if good - returns it's area & null pointer for the next task
+    //else - refreshes itself and return not null object for another task
     public TaskReturnValues calculate() {
         double mid = (rightEnd + leftEnd) / 2;
         Task taskLeft = new Task(leftEnd, mid);
         Task taskRight = new Task(mid, rightEnd);
         double diff = taskLeft.getArea() + taskRight.getArea() - this.area;
-        if (Math.abs(diff) < accuracy) {
+        //Here is the deal: We put left segment in stack and keep right segment calculating
+        //This could be VERY BAD if right is ALWAYS calculated accurate enough
+        //TODO: consider random left & right segments in the stack
+        //TODO: get to know if you actually need Double.compare or just <= is OK
+        if (Double.compare(Math.abs(diff), accuracy) <= 0) {
             return new TaskReturnValues(this.area, null);
         }
         else {

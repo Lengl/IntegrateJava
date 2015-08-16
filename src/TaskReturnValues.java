@@ -1,3 +1,4 @@
+//tech class for returning either double or Task
 public class TaskReturnValues {
     public final double area;
     public final Task task;
