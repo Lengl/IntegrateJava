@@ -23,6 +23,8 @@ public class Task {
     }
 
     public Task (double leftEnd, double rightEnd) {
+        if (leftEnd > rightEnd)
+            throw new IllegalArgumentException("bad segment: left > right");
         this.leftEnd = leftEnd;
         this.funcLeft = function(leftEnd);
         this.rightEnd = rightEnd;
