@@ -3,6 +3,7 @@
 public class Task {
     //This is OK difference between whole segment area and sum of two little segments
     public final static double accuracy = 0.000001;
+    public final static Task noTasks = new Task(0, 0);
 
     private double leftEnd;
     private double rightEnd;
@@ -46,7 +47,7 @@ public class Task {
         //TODO: consider random left & right segments in the stack
         //TODO: get to know if you actually need Double.compare or just <= is OK
         if (Double.compare(Math.abs(diff), accuracy) <= 0) {
-            return new TaskReturnValues(this.area, null);
+            return new TaskReturnValues(this.area, noTasks);
         }
         else {
             this.leftEnd = mid;
