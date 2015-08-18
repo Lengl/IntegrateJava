@@ -1,7 +1,7 @@
 import java.util.Stack;
 
 public class TaskExecutor extends Thread {
-    private static final int localStackCapacity = 10;
+    private static final int localStackCapacity = 15;
     private static final Task terminatorTask = Task.noTasks;
     //Any calls to this variables should be synchronized!
     private static int accuracyCount = 0;
@@ -14,17 +14,25 @@ public class TaskExecutor extends Thread {
     private static final Object gsLock = new Object();
     private static final Object gsNotEmpty = new Object();
 
+    //Those are local variables for each thread and should not be synchronized
     private Stack<Task> localStack = new Stack<Task>();
     private double tempResult = 0;
-    //private int tempAccuracyCount = 0;
-    public int tempAccuracyCount = 0;
+    private int tempAccuracyCount = 0;
     public int localStackDropCount = 0;
+
+    public int getTempAccuracyCount() {
+        return tempAccuracyCount;
+    }
+
+    public static int getAccuracyCount() {
+        return accuracyCount;
+    }
 
     //This one should exist because we need static method - even if he copies pushInGlobalStack
     public static void pushTask(Task task) {
-        synchronized (gsLock) {
-            globalStack.push(task);
-            synchronized (gsNotEmpty) {
+        synchronized (gsNotEmpty) {
+            synchronized (gsLock) {
+                globalStack.push(task);
                 gsNotEmpty.notify();
             }
         }
@@ -70,51 +78,64 @@ public class TaskExecutor extends Thread {
         }
     }
 
-    //Those methods synchronized because they work with shared variables
-
-    //TODO:Revise this method. wtcLock and gsLock aren't freed when gsNotEmpty.wait() happens.
+    //Explanation: why is it OK to set finishedCondition in synced block and use it in unsynced
+    //When it can fail: IF it was true, but became false
+    //Why not: there can be only one process getting true on this condition on one time.
+    //Others either are waiting (good) or somewhere in other part of the code (bad?)
+    //If they are not waiting, they are out from while, so there was a task in GS when they got up
+    //But no one except him could take it, as far as this code is synced. So GS wasn't empty, wrong.
+    //IF it was false, but become true: impossible, the last one always will be the last one.
     private Task popFromGlobalStack() {
+        boolean finishedCondition;
         synchronized (wtcLock) {
-            synchronized (gsLock) {
-                workingThreadsCount--;
-                //If we finished
-                if (workingThreadsCount == 0 && globalStack.isEmpty()) {
+            workingThreadsCount--;
+            finishedCondition = workingThreadsCount == 0 && globalStack.isEmpty();
+        }
+        if (finishedCondition) {
+            //If we finished calculating the task (we are THE LAST THREAD)
+            synchronized (gsNotEmpty) {
+                //refill global stack with terminatorTasks and pop one for ourselves.
+                synchronized (gsLock) {
                     for (int i = 0; i < livingThreadsCount; i++) {
                         globalStack.push(terminatorTask);
                     }
-                    synchronized (gsNotEmpty) {
-                        gsNotEmpty.notifyAll();
-                    }
-                } else {
-                    synchronized (gsNotEmpty) {
-                        try {
-                            while (globalStack.isEmpty())
-                                gsNotEmpty.wait(); //wait until global stack refilled
-                        } catch (InterruptedException e) {
-                        }
-                    }
+                    gsNotEmpty.notifyAll();
+                    return globalStack.pop();
+                }
+            }
+        } else {
+            //If we aren't THE LAST THREAD
+            synchronized (gsNotEmpty) {
+                try {
+                    while (globalStack.isEmpty())
+                        gsNotEmpty.wait(); //wait until global stack refilled
+                } catch (InterruptedException e) {
+                }
+                synchronized (wtcLock) {
                     workingThreadsCount++;
                 }
-                return globalStack.pop();
+                synchronized (gsLock) {
+                    return globalStack.pop();
+                }
             }
         }
     }
 
-    private synchronized void pushInGlobalStack(Task task) {
-        synchronized (gsLock) {
-            globalStack.push(task);
-            synchronized (gsNotEmpty) {
+    private void pushInGlobalStack(Task task) {
+        synchronized (gsNotEmpty) {
+            synchronized (gsLock) {
+                globalStack.push(task);
                 gsNotEmpty.notify();
             }
         }
     }
 
-    private synchronized void comeAlive() {
+    private void comeAlive() {
         synchronized (ltcLock) {livingThreadsCount++;}
         synchronized (wtcLock) {workingThreadsCount++;}
     }
 
-    private synchronized void die() {
+    private void die() {
         synchronized (ltcLock) {livingThreadsCount--;}
     }
 
@@ -129,9 +150,5 @@ public class TaskExecutor extends Thread {
 
     public static double getResult() {
         return result;
-    }
-
-    public static double getAccuracy() {
-        return accuracyCount * Task.accuracy;
     }
 }
