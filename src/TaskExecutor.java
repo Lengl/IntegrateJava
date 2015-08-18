@@ -14,14 +14,17 @@ public class TaskExecutor extends Thread {
     private static final Object ltcLock = new Object();
     private static Stack<Task> globalStack = new Stack<Task>();
     private static final Object gsLock = new Object();
+    private static final Object gsNotEmpty = new Object();
 
     private Stack<Task> localStack = new Stack<Task>();
 
-    //This one actually duplicates pushInGlobalStack, I'm not sure if it should exist.
+    //This one should exist because we need static method - even if he copies pushInGlobalStack
     public static void pushTask(Task task) {
         synchronized (gsLock) {
             globalStack.push(task);
-            globalStack.notify();
+            synchronized (gsNotEmpty) {
+                gsNotEmpty.notify();
+            }
         }
     }
 
@@ -35,6 +38,7 @@ public class TaskExecutor extends Thread {
             TaskReturnValues taskRes = curTask.calculate();
             while (taskRes.task != Task.noTasks) {
                 pushInStack(taskRes.task);
+                taskRes = curTask.calculate();
             }
             addToResult(taskRes.area);
         }
@@ -71,13 +75,16 @@ public class TaskExecutor extends Thread {
                     for (int i = 0; i < livingThreadsCount; i++) {
                         globalStack.push(terminatorTask);
                     }
-                    globalStack.notifyAll();
+                    synchronized (gsNotEmpty) {
+                        gsNotEmpty.notifyAll();
+                    }
                 } else {
-                    try {
-                        //wait until global stack refilled
-                        while (globalStack.isEmpty())
-                            globalStack.wait();
-                    } catch (InterruptedException e) {
+                    synchronized (gsNotEmpty) {
+                        try {
+                            while (globalStack.isEmpty())
+                                gsNotEmpty.wait(); //wait until global stack refilled
+                        } catch (InterruptedException e) {
+                        }
                     }
                     workingThreadsCount++;
                 }
@@ -89,7 +96,9 @@ public class TaskExecutor extends Thread {
     private synchronized void pushInGlobalStack(Task task) {
         synchronized (gsLock) {
             globalStack.push(task);
-            globalStack.notify();
+            synchronized (gsNotEmpty) {
+                gsNotEmpty.notify();
+            }
         }
     }
 
