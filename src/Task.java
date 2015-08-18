@@ -3,7 +3,7 @@
 public class Task {
     //This is OK difference between whole segment area and sum of two little segments
     public final static double accuracy = 0.000001;
-    public final static Task noTasks = new Task(0, 0);
+    public final static Task noTasks = new Task(1, 1);
 
     private double leftEnd;
     private double rightEnd;
