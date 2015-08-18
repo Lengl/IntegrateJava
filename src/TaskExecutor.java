@@ -1,7 +1,7 @@
 import java.util.Stack;
 
 public class TaskExecutor extends Thread {
-    private static final int localStackCapacity = 30;
+    private static final int localStackCapacity = 10;
     private static final Task terminatorTask = Task.noTasks;
     //Any calls to this variables should be synchronized!
     private static int accuracyCount = 0;
@@ -16,7 +16,9 @@ public class TaskExecutor extends Thread {
 
     private Stack<Task> localStack = new Stack<Task>();
     private double tempResult = 0;
-    private int tempAccuracyCount = 0;
+    //private int tempAccuracyCount = 0;
+    public int tempAccuracyCount = 0;
+    public int localStackDropCount = 0;
 
     //This one should exist because we need static method - even if he copies pushInGlobalStack
     public static void pushTask(Task task) {
@@ -59,6 +61,7 @@ public class TaskExecutor extends Thread {
     private void pushInStack(Task task) {
         localStack.push(task);
         if (localStack.size() == localStackCapacity) {
+            localStackDropCount++;
             //push extra task from local stack to global
             //we leave 5 tasks to avoid extra calls to global stack
             for (int i = 0; i < localStackCapacity - 5; i++) {
@@ -69,6 +72,7 @@ public class TaskExecutor extends Thread {
 
     //Those methods synchronized because they work with shared variables
 
+    //TODO:Revise this method. wtcLock and gsLock aren't freed when gsNotEmpty.wait() happens.
     private Task popFromGlobalStack() {
         synchronized (wtcLock) {
             synchronized (gsLock) {
