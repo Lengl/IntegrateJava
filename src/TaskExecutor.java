@@ -72,8 +72,6 @@ public class TaskExecutor extends Thread {
                         globalStack.push(terminatorTask);
                     }
                     globalStack.notifyAll();
-                    //here we are saying to the externals that result is ready
-                    this.notifyAll();
                 } else {
                     try {
                         //wait until global stack refilled
