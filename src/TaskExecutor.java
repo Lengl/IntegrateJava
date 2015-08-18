@@ -1,12 +1,10 @@
 import java.util.Stack;
 
-/**
- * Created by Lengl on 17.08.2015.
- */
 public class TaskExecutor extends Thread {
     private static final int localStackCapacity = 30;
     private static final Task terminatorTask = Task.noTasks;
     //Any calls to this variables should be synchronized!
+    private static int accuracyCount = 0;
     private static double result = 0.0;
     private static int workingThreadsCount = 0;
     private static final Object wtcLock = new Object();
@@ -17,6 +15,8 @@ public class TaskExecutor extends Thread {
     private static final Object gsNotEmpty = new Object();
 
     private Stack<Task> localStack = new Stack<Task>();
+    private double tempResult = 0;
+    private int tempAccuracyCount = 0;
 
     //This one should exist because we need static method - even if he copies pushInGlobalStack
     public static void pushTask(Task task) {
@@ -40,8 +40,11 @@ public class TaskExecutor extends Thread {
                 pushInStack(taskRes.task);
                 taskRes = curTask.calculate();
             }
-            addToResult(taskRes.area);
+            tempResult += taskRes.area;
+            tempAccuracyCount++;
         }
+        addToResult(tempResult);
+        addToAccuracyCount(tempAccuracyCount);
         die();
     }
 
@@ -116,7 +119,15 @@ public class TaskExecutor extends Thread {
         result += summand;
     }
 
+    private synchronized void addToAccuracyCount (int summand) {
+        accuracyCount += summand;
+    }
+
     public static double getResult() {
         return result;
+    }
+
+    public static double getAccuracy() {
+        return accuracyCount * Task.accuracy;
     }
 }
