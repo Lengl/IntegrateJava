@@ -7,17 +7,22 @@ public class TaskExecutor extends Thread {
     private static final int localStackCapacity = 30;
     private static final Task terminatorTask = Task.noTasks;
     //Any calls to this variables should be synchronized!
-    private static double result;
-    private static Stack <Task> globalStack;
-    private static int workingThreadsCount;
+    private static double result = 0.0;
+    private static int workingThreadsCount = 0;
+    private static final Object wtcLock = new Object();
     private static int livingThreadsCount = 0;
+    private static final Object ltcLock = new Object();
+    private static Stack<Task> globalStack = new Stack<Task>();
+    private static final Object gsLock = new Object();
 
-    private Stack <Task> localStack;
+    private Stack<Task> localStack = new Stack<Task>();
 
     //This one actually duplicates pushInGlobalStack, I'm not sure if it should exist.
     public static void pushTask(Task task) {
-        globalStack.push(task);
-        globalStack.notify();
+        synchronized (gsLock) {
+            globalStack.push(task);
+            globalStack.notify();
+        }
     }
 
     public void run() {
@@ -57,43 +62,51 @@ public class TaskExecutor extends Thread {
 
     //Those methods synchronized because they work with shared variables
 
-    private synchronized Task popFromGlobalStack() {
-        workingThreadsCount--;
-        //If we finished
-        if (workingThreadsCount == 0 && globalStack.isEmpty()){
-            for (int i = 0; i < livingThreadsCount; i++) {
-                globalStack.push(terminatorTask);
+    private Task popFromGlobalStack() {
+        synchronized (wtcLock) {
+            synchronized (gsLock) {
+                workingThreadsCount--;
+                //If we finished
+                if (workingThreadsCount == 0 && globalStack.isEmpty()) {
+                    for (int i = 0; i < livingThreadsCount; i++) {
+                        globalStack.push(terminatorTask);
+                    }
+                    globalStack.notifyAll();
+                    //here we are saying to the externals that result is ready
+                    this.notifyAll();
+                } else {
+                    try {
+                        //wait until global stack refilled
+                        while (globalStack.isEmpty())
+                            globalStack.wait();
+                    } catch (InterruptedException e) {
+                    }
+                    workingThreadsCount++;
+                }
+                return globalStack.pop();
             }
-            globalStack.notifyAll();
-            //here we are saying to the externals that result is ready
-            this.notifyAll();
-        } else {
-            try {
-                //wait until global stack refilled
-                while (globalStack.isEmpty())
-                    globalStack.wait();
-            } catch (InterruptedException e) {}
-            workingThreadsCount++;
         }
-        return globalStack.pop();
     }
 
     private synchronized void pushInGlobalStack(Task task) {
-        globalStack.push(task);
-        globalStack.notify();
-    }
-
-    private synchronized void addToResult (double summand) {
-        result += summand;
+        synchronized (gsLock) {
+            globalStack.push(task);
+            globalStack.notify();
+        }
     }
 
     private synchronized void comeAlive() {
-        livingThreadsCount++;
-        workingThreadsCount++;
+        synchronized (ltcLock) {livingThreadsCount++;}
+        synchronized (wtcLock) {workingThreadsCount++;}
     }
 
     private synchronized void die() {
-        livingThreadsCount--;
+        synchronized (ltcLock) {livingThreadsCount--;}
+    }
+
+    //It is ok to be synchronized - we never else change result
+    private synchronized void addToResult (double summand) {
+        result += summand;
     }
 
     public static double getResult() {
